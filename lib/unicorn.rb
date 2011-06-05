@@ -27,6 +27,7 @@ module Unicorn
 
   # :stopdoc:
   def self.run(app, options = {})
+    puts "Phusion Unicorn v#{Unicorn::Const::UNICORN_VERSION}"
     Unicorn::HttpServer.new(app, options).start.join
   end
 

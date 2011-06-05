@@ -1,10 +1,13 @@
-= Unicorn: Rack HTTP server for fast clients and Unix
+= Phusion Unicorn: Rack HTTP server for fast clients and Unix
 
 \Unicorn is an HTTP server for Rack applications designed to only serve
 fast clients on low-latency, high-bandwidth connections and take
 advantage of features in Unix/Unix-like kernels.  Slow clients should
 only be served by placing a reverse proxy capable of fully buffering
 both the the request and response in between \Unicorn and slow clients.
+
+Phusion Unicorn is a branch of Unicorn with extra functionality such as
+support for Rails 3 streaming. See Unicorn::StreamingHelper.
 
 == Features
 
@@ -73,26 +76,15 @@ for details.
 The library consists of a C extension so you'll need a C compiler
 and Ruby development libraries/headers.
 
-You may download the tarball from the Mongrel project page on Rubyforge
-and run setup.rb after unpacking it:
+Run:
 
-http://rubyforge.org/frs/?group_id=1306
-
-You may also install it via RubyGems on RubyGems.org:
-
-  gem install unicorn
+  gem install phusion_unicorn
 
 You can get the latest source via git from the following locations
 (these versions may not be stable):
 
-  git://bogomips.org/unicorn.git
-  git://repo.or.cz/unicorn.git (mirror)
-
-You may browse the code from the web and download the latest snapshot
-tarballs here:
-
-* http://bogomips.org/unicorn.git (cgit)
-* http://repo.or.cz/w/unicorn.git (gitweb)
+  https://github.com/phusion/unicorn
+  git://bogomips.org/unicorn.git (original Eric Wong repo without Phusion extensions)
 
 See the HACKING guide on how to contribute and build prerelease gems
 from git.

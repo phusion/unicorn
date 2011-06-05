@@ -225,7 +225,7 @@ $(T_r).%.r: $(test_prefix)/.stamp $(rails_git)/info/v2.2.3-stamp
 
 ifneq ($(VERSION),)
 rfproject := mongrel
-rfpackage := unicorn
+rfpackage := phusion_unicorn
 pkggem := pkg/$(rfpackage)-$(VERSION).gem
 pkgtgz := pkg/$(rfpackage)-$(VERSION).tgz
 release_notes := release_notes-$(VERSION)
