@@ -87,6 +87,8 @@ module Unicorn
         end
       end
     end
+    
+    module_function :set_tcp_sockopt
 
     def set_server_sockopt(sock, opt)
       opt = DEFAULTS.merge(opt || {})

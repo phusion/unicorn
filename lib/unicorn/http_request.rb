@@ -26,6 +26,7 @@ class Unicorn::HttpParser
   # A frozen format for this is about 15% faster
   REMOTE_ADDR = 'REMOTE_ADDR'.freeze
   RACK_INPUT = 'rack.input'.freeze
+  UNICORN_SOCKET = 'unicorn.socket'.freeze
   @@input_class = Unicorn::TeeInput
 
   def self.input_class
@@ -62,6 +63,7 @@ class Unicorn::HttpParser
     #  that client may be a proxy, gateway, or other intermediary
     #  acting on behalf of the actual source client."
     e[REMOTE_ADDR] = socket.kgio_addr
+    e[UNICORN_SOCKET] = socket
 
     # short circuit the common case with small GET requests first
     socket.kgio_read!(16384, buf)

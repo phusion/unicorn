@@ -1,8 +1,24 @@
 # encoding: binary
 require 'zlib'
+require 'stringio'
 
 module Unicorn
   class StreamingHelper
+    TRANSFER_ENCODING = 'Transfer-Encoding'.freeze
+    CONTENT_ENCODING  = 'Content-Encoding'.freeze
+    X_ACCEL_BUFFERING = 'X-Accel-Buffering'.freeze
+    UNICORN_SOCKET    = 'unicorn.socket'.freeze
+    CONTENT_TYPE      = 'Content-Type'.freeze
+    CONTENT_LENGTH    = 'Content-Length'.freeze
+    CONTENT_MD5       = 'Content-MD5'.freeze
+    ACCEPT_ENCODING   = 'Accept-Encoding'.freeze
+    HTTP_ACCEPT_ENCODING = 'HTTP_ACCEPT_ENCODING'.freeze
+    EMPTY_STRING      = ''.freeze
+    VARY    = 'Vary'.freeze
+    CHUNKED = 'chunked'.freeze
+    GZIP    = 'gzip'.freeze
+    NO      = 'no'.freeze
+    
     def initialize(app, compression_types = nil)
       @app = app
       @compression_type_names = {}
@@ -22,11 +38,21 @@ module Unicorn
     
     def call(env)
       status, headers, body = @app.call(env)
-      if headers['Transfer-Encoding'] == 'chunked'
-        headers['X-Accel-Buffering'] = 'no'
-        headers.delete('Transfer-Encoding')
-        if should_compress?(headers)
-          headers['Content-Encoding'] = 'gzip'
+      if headers[TRANSFER_ENCODING] == CHUNKED
+        headers[X_ACCEL_BUFFERING] = NO
+        headers.delete(TRANSFER_ENCODING)
+        headers.delete(CONTENT_LENGTH)
+        headers.delete(CONTENT_MD5)
+        
+        socket = env[UNICORN_SOCKET]
+        socket.sync = true
+        SocketHelper.set_tcp_sockopt(socket,
+          :tcp_nopush => false,
+          :tcp_nodelay => false)
+        
+        if should_compress?(env, headers)
+          headers[CONTENT_ENCODING] = GZIP
+          headers[VARY] = ACCEPT_ENCODING
           body = DechunkedBody.new(body, true)
         else
           body = DechunkedBody.new(body, false)
@@ -36,15 +62,31 @@ module Unicorn
     end
     
   private
-    def should_compress?(headers)
-      content_type = headers['Content-Type']
+    def should_compress?(env, headers)
+      content_type = headers[CONTENT_TYPE]
       if content_type
-        content_type = content_type.downcase
-        content_type.sub!(/;.*/, '')
-        @compression_type_names[content_type] ||
-          @compression_type_regexps.one? do |regexp|
-            content_type =~ regexp
-          end
+        compressable_content_type?(content_type) &&
+          client_supports_compression?(env)
+      else
+        false
+      end
+    end
+    
+    def compressable_content_type?(content_type)
+      content_type = content_type.downcase
+      content_type.sub!(/;.*/, EMPTY_STRING)
+      @compression_type_names[content_type] ||
+        @compression_type_regexps.one? do |regexp|
+          content_type =~ regexp
+        end
+    end
+    
+    def client_supports_compression?(env)
+      if value = env[HTTP_ACCEPT_ENCODING]
+        accept_encodings = value.split(/, */)
+        accept_encodings.one? do |e|
+          e =~ /\Agzip(;|\Z)/
+        end
       else
         false
       end
@@ -68,6 +110,7 @@ module Unicorn
       end
       
       def close
+        @body.close if @body.respond_to?(:close)
         if @gzipper
           @gzipper.close
         end
