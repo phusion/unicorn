@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include "common_field_optimization.h"
 #include "global_variables.h"
+#include "c_dechunker.h"
 #include "c_util.h"
 
 void init_unicorn_httpdate(void);
@@ -924,6 +925,67 @@ static VALUE HttpParser_filter_body(VALUE self, VALUE buf, VALUE data)
   return data;
 }
 
+
+struct DechunkerSession {
+  VALUE buf;
+};
+
+static void Dechunker_onData(const char *data, size_t size, void *userData)
+{
+  struct DechunkerSession *session = userData;
+  rb_yield(rb_str_substr(session->buf, data - RSTRING_PTR(session->buf), size));
+}
+
+static VALUE Dechunker_alloc(VALUE klass)
+{
+  PassengerDechunker *dck = passenger_dechunker_new();
+  passenger_dechunker_set_data_cb(dck, Dechunker_onData);
+  return Data_Wrap_Struct(klass, NULL, (void (*)()) passenger_dechunker_free, dck);
+}
+
+static VALUE Dechunker_reset(VALUE self)
+{
+  PassengerDechunker *dck;
+  Data_Get_Struct(self, PassengerDechunker, dck);
+  passenger_dechunker_reset(dck);
+  return Qnil;
+}
+
+static VALUE Dechunker_feed(VALUE self, VALUE buf)
+{
+  PassengerDechunker *dck;
+  struct DechunkerSession session;
+  size_t ret;
+  
+  Data_Get_Struct(self, PassengerDechunker, dck);
+  passenger_dechunker_set_user_data(dck, &session);
+  session.buf = buf;
+  ret = passenger_dechunker_feed(dck, RSTRING_PTR(buf), RSTRING_LEN(buf));
+  return INT2NUM(ret);
+}
+
+static VALUE Dechunker_accepting_input_p(VALUE self)
+{
+  PassengerDechunker *dck;
+  Data_Get_Struct(self, PassengerDechunker, dck);
+  return passenger_dechunker_accepting_input(dck) ? Qtrue : Qfalse;
+}
+
+static VALUE Dechunker_has_error_p(VALUE self)
+{
+  PassengerDechunker *dck;
+  Data_Get_Struct(self, PassengerDechunker, dck);
+  return passenger_dechunker_has_error(dck) ? Qtrue : Qfalse;
+}
+
+static VALUE Dechunker_get_error_message(VALUE self)
+{
+  PassengerDechunker *dck;
+  Data_Get_Struct(self, PassengerDechunker, dck);
+  return rb_str_new2(passenger_dechunker_get_error_message(dck));
+}
+
+
 #define SET_GLOBAL(var,str) do { \
   var = find_common_field(str, sizeof(str) - 1); \
   assert(!NIL_P(var) && "missed global field"); \
@@ -931,7 +993,7 @@ static VALUE HttpParser_filter_body(VALUE self, VALUE buf, VALUE data)
 
 void Init_unicorn_http(void)
 {
-  VALUE mUnicorn, cHttpParser;
+  VALUE mUnicorn, cHttpParser, cDechunker;
 
   mUnicorn = rb_const_get(rb_cObject, rb_intern("Unicorn"));
   cHttpParser = rb_define_class_under(mUnicorn, "HttpParser", rb_cObject);
@@ -984,6 +1046,14 @@ void Init_unicorn_http(void)
   rb_define_singleton_method(cHttpParser, "trust_x_forwarded=", set_xftrust, 1);
   rb_define_singleton_method(cHttpParser, "trust_x_forwarded?", xftrust, 0);
   rb_define_singleton_method(cHttpParser, "max_header_len=", set_maxhdrlen, 1);
+
+  cDechunker = rb_define_class_under(mUnicorn, "Dechunker", rb_cObject);
+  rb_define_alloc_func(cDechunker, Dechunker_alloc);
+  rb_define_method(cDechunker, "reset", Dechunker_reset, 0);
+  rb_define_method(cDechunker, "feed", Dechunker_feed, 1);
+  rb_define_method(cDechunker, "accepting_input?", Dechunker_accepting_input_p, 0);
+  rb_define_method(cDechunker, "has_error?", Dechunker_has_error_p, 0);
+  rb_define_method(cDechunker, "error_message", Dechunker_get_error_message, 0);
 
   init_common_fields();
   SET_GLOBAL(g_http_host, "HOST");

@@ -60,7 +60,7 @@ $(ext)/unicorn_http.c: $(rl_files)
 	cd $(@D) && $(RAGEL) unicorn_http.rl -C $(RLFLAGS) -o $(@F)
 $(ext)/Makefile: $(ext)/extconf.rb $(c_files)
 	cd $(@D) && $(RUBY) extconf.rb
-$(ext)/unicorn_http.$(DLEXT): $(ext)/Makefile
+$(ext)/unicorn_http.$(DLEXT): $(ext)/Makefile $(ext)/*.cpp
 	$(MAKE) -C $(@D)
 lib/unicorn_http.$(DLEXT): $(ext)/unicorn_http.$(DLEXT)
 	@mkdir -p lib
